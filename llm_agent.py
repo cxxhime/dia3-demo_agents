@@ -1,79 +1,45 @@
-from groq import Groq
-
-from dotenv import load_dotenv
-import os
+import streamlit as st 
+from llm_agent import ConversationAgent
 
 
-class ConversationAgent:
-    def __init__(self):
-        load_dotenv()
-        self.groq_client = Groq(api_key=os.environ["GROQ_KEY"])
-        self.conversation_history = [
-                {
-                    "role": "system",
-                    "content": self.read_file(file_path="./context.txt")
-                }
-            ]
+class UserInterface:
+	def __init__(self):
+		st.set_page_config(page_title="Jarvis")
+		st.title("Barbe-Quasar")
+		self.conversation_agent_object = self.get_persistant_conversation_agent()
 
 
-    @staticmethod
-    def read_file(file_path):
-        with open(file_path, "r") as file:
-            return file.read()
+	def get_persistant_conversation_agent(self):
+		
+		if "conversation_agent_object" not in st.session_state:
+			st.session_state.conversation_agent_object = ConversationAgent()
+
+		return st.session_state.conversation_agent_object
 
 
-    def update_conversation_history(self, role, content):
-        self.conversation_history.append(
-            {
-            "role": role,
-            "content": content,
-            }
-        )
+	def show_discussion_history(self):
+		for message in self.conversation_agent_object.conversation_history:
+			if message["role"] != "system":
+				with st.chat_message(message["role"]):
+					st.markdown(message["content"])
 
 
-    def ask_llm(self, question):
+	def run(self):
+		user_interaction = st.chat_input(
+			"Que veux tu moussaillon ?",
+			accept_file=False,
+			accept_audio=True
+			)
 
-        self.update_conversation_history(role="user", content=question)
+		if user_interaction:
+			if user_interaction.audio:
+				question = self.conversation_agent_object.speech_to_text(user_interaction.audio)
+			else:
+				question = user_interaction.text
 
-        response = self.groq_client.chat.completions.create(
-            messages=self.conversation_history,
-            model="openai/gpt-oss-120b",
-            include_reasoning=False,
-        ).choices[0].message.content
-
-
-        self.update_conversation_history(role="assistant", content=response)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+			self.conversation_agent_object.ask_llm(question)
+			self.show_discussion_history()
 
 if __name__ == "__main__":
-    question = input("Pose ta question :\n")
-    response = ask_llm(question)
-    print("\n")
-    print(response)
+	user_interface_object = UserInterface()
+	user_interface_object.run()
